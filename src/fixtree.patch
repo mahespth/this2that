@@ -1,0 +1,52 @@
+@@
+-            with Horizontal():
+-                self.tree = Tree("YAML/JSON Data")
+-                self.output_editor = TextArea(id="output_editor")
+-                self.output_editor.read_only = True
+-                self.output_editor.placeholder = "Live output. Ctrl+E to edit target."
+-                yield self.tree
+-                yield self.output_editor
++            with Horizontal():
++                # Use an ID instead of assigning directly to self.tree
++                yield Tree("YAML/JSON Data", id="data_tree")
++                self.output_editor = TextArea(id="output_editor")
++                self.output_editor.read_only = True
++                self.output_editor.placeholder = "Live output. Ctrl+E to edit target."
++                yield self.output_editor
+
+@@
+-    def on_mount(self):
+-        self.data = self.load_data()
+-        if self.data_load_error:
+-            self.tree.root.set_label("Invalid Input File")
+-            self.tree.root.add_leaf(Text(f"Error parsing file:\n{self.data_load_error}", style="bold red"))
+-            self.tree.root.expand()
+-            return
+-        self.build_tree(self.data, self.tree.root, path=[])
+-        self.tree.root.expand()
+-        self.update_suggestion_bar("Ctrl+E edit target • Ctrl+I infer • Ctrl+Y accept • Ctrl+J JMES tester")
++    def on_mount(self):
++        # Grab a reference to the tree widget by its ID
++        self.data_tree = self.query_one("#data_tree", Tree)
++        self.data = self.load_data()
++        if self.data_load_error:
++            self.data_tree.root.set_label("Invalid Input File")
++            self.data_tree.root.add_leaf(Text(f"Error parsing file:\n{self.data_load_error}", style="bold red"))
++            self.data_tree.root.expand()
++            return
++        self.build_tree(self.data, self.data_tree.root, path=[])
++        self.data_tree.root.expand()
++        self.update_suggestion_bar("Ctrl+E edit target • Ctrl+I infer • Ctrl+Y accept • Ctrl+J JMES tester")
+
+@@
+-            self.tree.root.collapse()
++            self.data_tree.root.collapse()
+
+@@
+-            self.tree.select_node(self.search_results[0].id)
++            self.data_tree.select_node(self.search_results[0].id)
+
+@@
+-        self.tree.select_node(self.search_results[self.search_index].id)
++        self.data_tree.select_node(self.search_results[self.search_index].id)
+

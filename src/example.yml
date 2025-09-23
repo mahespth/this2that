@@ -1,0 +1,20 @@
+---
+
+servers:
+  - name: web1
+    ip: 192.168.1.10
+    role: frontend
+  - name: db1
+    ip: 192.168.1.20
+    role: database
+
+config:
+  retries: 3
+  timeout: 30
+  features:
+    logging: true
+    metrics: false
+
+...
+
+
