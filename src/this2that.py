@@ -60,7 +60,7 @@ DEFAULT_CONFIG = {
         "search_toggle": ["ctrl+f"],
         "output_json": ["ctrl+j"],   
         "output_yaml": ["ctrl+y"],  
-        "output_yaml_nice": ["ctrl+shift+y"] 
+        "output_yaml_nice": ["ctrl+shift+y","ctrl+n"] 
     }
 }
 
