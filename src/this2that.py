@@ -51,7 +51,7 @@ SAVE_FILE = os.path.expanduser("~/.config/this2that/saved_runs.yaml")
 DEFAULT_CONFIG = {
     "keys": {
         "help": ["ctrl+/", "ctrl+underscore", "?"],  # VMware safe mapping
-        "quit": ["ctrl+q"],
+        "quit": ["ctrl+x", "ctrl+q"],
         "save": ["ctrl+s"],
         "refresh": ["enter", "ctrl+enter"],
         "edit_toggle": ["ctrl+e"],
@@ -80,6 +80,23 @@ def ensure_save_file():
 
 def normalize_expression(expr: str) -> str:
     stripped = expr.strip()
+
+    if not stripped:
+        return stripped
+
+    # If the user already wrapped in {{ }}, leave it as-is
+    if stripped.startswith("{{") and stripped.endswith("}}"):
+        return stripped
+
+    # If it contains parentheses or 'selected |', assume it's already a filter chain
+    if "(" in stripped or stripped.startswith("selected |"):
+        return "{{ " + stripped + " }}"
+
+    # Otherwise, treat as a simple filter name
+    return "{{ selected | " + stripped + " }}"
+
+def xnormalize_expression(expr: str) -> str:
+    stripped = expr.strip()
     if not stripped:
         return stripped
     if stripped.startswith("{{") and stripped.endswith("}}"):
@@ -97,6 +114,7 @@ def setup_jinja_environment():
         from ansible.plugins.filter.core import FilterModule as AnsibleFilters
         env.filters.update(AnsibleFilters().filters())
         logger.info("Loaded Ansible filters: %s", list(env.filters.keys()))
+
     except Exception as e:
         logger.warning("Failed to load Ansible filters: %s", e)
 
@@ -162,7 +180,7 @@ Navigate JSON or YAML data, apply Jinja2 filters, and save transformations.
         """
         yield Static(
             Panel(Align.center(help_text, vertical="middle"),
-                  title="Help - This2That", border_style="cyan"),
+                title="Help - This2That", border_style="cyan"),
             id="help_modal_content"
         )
 
@@ -178,7 +196,7 @@ class This2That(App):
     Horizontal { height: 1fr; }
     Tree { width: 40%; border: solid green; }
     TextArea#output_editor { width: 60%; border: solid blue; overflow: auto; }
-    TextArea#expr_input { height: 3; border: solid yellow; }
+    TextArea#expr_input { height: 6; border: solid yellow; }
     TextArea#expr_input.error { background: #330000; color: #ffcccc; }
     Static#suggestion_bar { height: 3; border: solid cyan; }
     """
@@ -212,12 +230,18 @@ class This2That(App):
             with open(self.data_file, "r") as f:
                 content = f.read()
             try:
-                return yaml_parser.load(content)
+                content = yaml_parser.load(content)
+                logger.info("Loaded data as YAML. from %s", self.data_file)
+                return content
+            
             except Exception:
+                logger.info("Highlight refresh suppressed temporarily.")
                 return json.loads(content)
         except Exception as e:
+            logger.info("load_data Failed to load data file: %s, error:", self.data_file, str(e))      
+
             self.data_load_error = str(e)
-            return None
+            return None 
 
     # ----------------------------------------------------------------------
     # Layout
@@ -225,7 +249,7 @@ class This2That(App):
     def compose(self) -> ComposeResult:
         with Vertical():
             with Horizontal():
-                yield Tree("YAML/JSON Data", id="data_tree")
+                yield Tree("Data", id="data_tree")
                 self.output_editor = TextArea(id="output_editor")
                 self.output_editor.read_only = True
                 yield self.output_editor

@@ -1,0 +1,23 @@
+---
+
+deployment:
+  metadata:
+    name: api
+  spec:
+    replicas: 3
+    template:
+      spec:
+        containers:
+          - name: api
+            image: ghcr.io/acme/api:1.4.2
+            ports: [{containerPort: 8080}]
+            env:
+              - {name: LOG_LEVEL, value: info}
+              - {name: FEATURE_FLAG, value: "true"}
+          - name: sidecar
+            image: ghcr.io/acme/sidecar:0.9.1
+            ports: [{containerPort: 8125}]
+            env:
+              - {name: LOG_LEVEL, value: warn}
+
+...

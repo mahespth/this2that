@@ -1,0 +1,4 @@
+selected.groups['web'].hosts + selected.groups['web'].children 
+( selected.groups['web'].hosts + selected.groups['web'].children | map('extract', selected.groups) | map(attribute='hosts') | list | flatten ) 
+
+

@@ -1,0 +1,23 @@
+# A: service -> timeout (default 5)
+{{ services | dict2items
+   | map('combine', {'timeout': 0})     # seed (not required but harmless)
+   | map('combine', {'timeout': 5})     # default
+   | map('combine', lambda x: {'timeout': x.value.timeout | default(5, true)}) }}
+
+# Simpler A (final list of timeouts in order of keys):
+{{ services | dictsort
+   | map('last') | map(attribute='timeout') | map('default', 5, true) | list }}
+
+# B: region per service -> dict
+{{ services | dict2items
+   | map('combine', {
+       'region': (map(attribute='value.labels.region') | list) }) }}
+
+# Simpler B (service->region/unknown)
+{{ services | dict2items | map('combine', { 'region': (map(attribute='value.labels.region') | list) }) }}
+
+ dict2items
+   | map('combine', {'timeout': 0})     # seed (not required but harmless)
+   | map('combine', {'timeout': 5})     # default
+   | map('combine', lambda x: {'timeout': x.value.timeout | default(5, true)}) }}
+

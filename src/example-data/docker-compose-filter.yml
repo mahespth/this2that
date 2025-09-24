@@ -1,0 +1,4 @@
+dict2items | selectattr('value.ports','defined') | map(attribute='value.ports') | flatten | map('regex_replace', '^([^:]+)/?.*$', '\\1') | map('int') | list
+dict2items | selectattr('value.ports','defined') | map(attribute='value.ports') | flatten 
+
+

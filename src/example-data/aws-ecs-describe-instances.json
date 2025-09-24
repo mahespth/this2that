@@ -1,0 +1,12 @@
+{
+  "Reservations": [
+    { "Instances": [
+      {"InstanceId":"i-aaa","State":{"Name":"running"},"Tags":[{"Key":"Role","Value":"web"}]},
+      {"InstanceId":"i-bbb","State":{"Name":"stopped"},"Tags":[{"Key":"Role","Value":"web"}]}
+    ]},
+    { "Instances": [
+      {"InstanceId":"i-ccc","State":{"Name":"running"},"Tags":[{"Key":"Role","Value":"db"}]}
+    ]}
+  ]
+}
+

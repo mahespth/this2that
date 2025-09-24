@@ -1,0 +1,3 @@
+json_query("[].Instances[] | [?State.Name=='running' && Tags[?Key=='Role' && Value=='web']].InstanceId")
+
+

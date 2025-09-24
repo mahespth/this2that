@@ -1,0 +1,10 @@
+services:
+  "api.v2":
+    url: https://api.example.com
+    timeout: 2.5
+  cache:
+    url: redis://cache:6379
+  metrics:
+    url: http://prometheus:9090
+    labels: {env: prod, region: eu-west-2}
+

@@ -1,0 +1,14 @@
+---
+
+services:
+  web:
+    image: nginx:1.25
+    ports: ["8080:80", "8443:443"]
+  api:
+    image: ghcr.io/acme/api:2.0
+    ports: ["9000:9000"]
+  worker:
+    image: ghcr.io/acme/worker:1.1
+
+...
+

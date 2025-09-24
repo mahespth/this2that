@@ -1,0 +1,8 @@
+
+test:
+  -  deployment.spec.template.spec.containers | selectattr('env', 'defined') | selectattr('env', 'select', 'name', 'LOG_LEVEL') | selectattr('env', 'select', 'value', 'info') | map(attribute='image') | list 
+  - selectattr('env', 'defined') | list
+   | selectattr('env', 'select', 'name', 'LOG_LEVEL')
+   | selectattr('env', 'select', 'value', 'info')
+   | map(attribute='image') | list }}
+

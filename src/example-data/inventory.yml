@@ -1,0 +1,9 @@
+---
+
+inventory:
+  groups:
+    web: {hosts: ["web1","web2"], children: ["edge"]}
+    edge: {hosts: ["edge1"], children: []}
+    db:   {hosts: ["db1","db2"], children: []}
+
+...
