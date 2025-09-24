@@ -21,6 +21,7 @@ from rich.align import Align
 import jmespath
 from jinja2 import Environment, TemplateSyntaxError
 from ruamel.yaml import YAML
+from io import StringIO
 
 # ------------------------------------------------------------------------------
 # Logging Setup
@@ -57,6 +58,8 @@ DEFAULT_CONFIG = {
         "edit_toggle": ["ctrl+e"],
         "ai_suggest": ["ctrl+a"],  # AI Suggestion trigger
         "search_toggle": ["ctrl+f"],
+        "output_json": ["ctrl+j"],   
+        "output_yaml": ["ctrl+y"],   
     }
 }
 
@@ -149,7 +152,9 @@ def load_user_config():
 class HelpModal(ModalScreen):
     def compose(self) -> ComposeResult:
         help_text = """
-[b]This2That - Help[/b]
+[b]This2That Ansible Data transformation tool - Help[/b]
+
+Author: Steve Maher
 
 Navigate JSON or YAML data, apply Jinja2 filters, and save transformations.
 
@@ -161,6 +166,8 @@ Navigate JSON or YAML data, apply Jinja2 filters, and save transformations.
   • Ctrl+Enter             - Refresh output
   • Ctrl+E                 - Toggle output editor edit mode
   • Ctrl+A                 - AI suggest filter from edited output
+  • Ctrl+J                 - Output format: JSON
+  • Ctrl+Y                 - Output format: YAML
   • Ctrl+F                 - (Reserved for search mode)
 
 [b]Usage Notes:[/b]
@@ -206,6 +213,8 @@ class This2That(App):
         self.config = load_user_config()
         self.j2_env = setup_jinja_environment()
         self.suppress_highlight_refresh = False
+
+        self.output_format = "json"  # default to JSON
 
     # ----------------------------------------------------------------------
     # Key Utilities
@@ -332,6 +341,7 @@ class This2That(App):
             return
 
         expr = normalize_expression(expr_raw)
+
         try:
             result = self.evaluate_expression(expr, self.selected_value)
             try:
@@ -349,26 +359,47 @@ class This2That(App):
         try:
             template = self.j2_env.from_string(expr)
             return template.render(selected=value)
+            
         except TemplateSyntaxError as e:
             raise TemplateSyntaxError(str(e), e.lineno, e.name, e.filename)
+        
         except Exception as e:
             raise RuntimeError(str(e))
 
     def pretty_update_right(self, result):
-        if isinstance(result, (dict, list)):
-            self.output_editor.text = json.dumps(result, indent=2)
-            return
-        if isinstance(result, str):
-            s = result.strip()
-            if s.startswith("{") or s.startswith("["):
+        """Render result as JSON or YAML based on current output_format."""
+        try:
+            if self.output_format == "yaml":
+                # YAML output
                 try:
-                    self.output_editor.text = json.dumps(json.loads(result), indent=2)
-                    return
-                except json.JSONDecodeError:
-                    pass
-            self.output_editor.text = result
-            return
-        self.output_editor.text = str(result)
+                    stream = StringIO()
+                    yaml_parser.dump(result, stream)
+                    yaml_str = stream.getvalue()
+                    self.output_editor.text = yaml_str
+                except Exception as e:
+                    self.output_editor.text = f"ERROR: Failed to render as YAML\n{str(e)}"
+                return
+
+            # Default JSON output
+            if isinstance(result, (dict, list)):
+                self.output_editor.text = json.dumps(result, indent=2, ensure_ascii=False)
+                return
+
+            if isinstance(result, str):
+                s = result.strip()
+                if s.startswith("{") or s.startswith("["):
+                    try:
+                        self.output_editor.text = json.dumps(json.loads(result), indent=2, ensure_ascii=False)
+                        return
+                    except json.JSONDecodeError:
+                        pass
+                self.output_editor.text = result
+                return
+
+            self.output_editor.text = str(result)
+
+        except Exception as e:
+            self.output_editor.text = f"ERROR: Failed to render output\n{str(e)}"
 
     # ----------------------------------------------------------------------
     # Error Handling
@@ -487,16 +518,31 @@ class This2That(App):
 
         if self.is_key("quit", event.key):
             self.exit()
+
         elif self.is_key("help", event.key):
             self.push_screen(HelpModal())
+
         elif self.is_key("refresh", event.key):
             self.refresh_output(force=True)
+
         elif self.is_key("save", event.key):
             self.save_current_run()
+
         elif self.is_key("edit_toggle", event.key):
             self.toggle_edit_mode()
+
         elif self.is_key("ai_suggest", event.key):
             self.ai_suggest_filter()
+
+        elif self.is_key("output_json", event.key):
+            self.output_format = "json"
+            self.suggestion_bar.update("[green]Output format changed to JSON[/green]")
+            self.refresh_output(force=True)
+
+        elif self.is_key("output_yaml", event.key):
+            self.output_format = "yaml"
+            self.suggestion_bar.update("[green]Output format changed to YAML[/green]")
+            self.refresh_output(force=True)
 
 # ------------------------------------------------------------------------------
 # Main
