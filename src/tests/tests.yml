@@ -1,0 +1,43 @@
+---
+
+tests:
+  - name: Simple length test
+    input:
+      servers:
+        - name: web1
+        - name: db1
+    filter: length
+    expected_output: 1  # The top-level dict has one key, so length=1
+
+  - name: Count servers list
+    input:
+      servers:
+        - name: web1
+        - name: db1
+    filter: "selected.servers | length"
+    expected_output: 2
+
+  - name: json_query example
+    input:
+      servers:
+        - name: web1
+          role: frontend
+        - name: db1
+          role: database
+    filter: selected.servers | json_query("[?role=='frontend'].name")
+    expected_output:
+      - web1
+
+  - name: selectattr example
+    input:
+      servers:
+        - name: web1
+          role: frontend
+        - name: db1
+          role: database
+    filter: 'selected.servers | selectattr("role", "equalto", "database") | list'
+    expected_output:
+      - name: db1
+        role: database
+
+...
