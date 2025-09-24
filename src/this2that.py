@@ -95,15 +95,6 @@ def normalize_expression(expr: str) -> str:
     # Otherwise, treat as a simple filter name
     return "{{ selected | " + stripped + " }}"
 
-def xnormalize_expression(expr: str) -> str:
-    stripped = expr.strip()
-    if not stripped:
-        return stripped
-    if stripped.startswith("{{") and stripped.endswith("}}"):
-        return stripped
-    if stripped.startswith("selected"):
-        return "{{ " + stripped + " }}"
-    return "{{ selected | " + stripped + " }}"
 
 # ------------------------------------------------------------------------------
 # Jinja2 Environment with json_query Support

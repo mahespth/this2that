@@ -28,5 +28,5 @@ this2that /tmp/tree/localhost
 ```
 
 
-!(Result from setup)[docs/image1.png]
+![Result from setup](docs/image1.png)
 
