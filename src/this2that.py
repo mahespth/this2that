@@ -59,7 +59,8 @@ DEFAULT_CONFIG = {
         "ai_suggest": ["ctrl+a"],  # AI Suggestion trigger
         "search_toggle": ["ctrl+f"],
         "output_json": ["ctrl+j"],   
-        "output_yaml": ["ctrl+y"],   
+        "output_yaml": ["ctrl+y"],  
+        "output_yaml_nice": ["ctrl+shift+y"] 
     }
 }
 
@@ -168,6 +169,7 @@ Navigate JSON or YAML data, apply Jinja2 filters, and save transformations.
   • Ctrl+A                 - AI suggest filter from edited output
   • Ctrl+J                 - Output format: JSON
   • Ctrl+Y                 - Output format: YAML
+  • Ctrl+Shift+Y           - Output format: YAML (pretty / expanded)
   • Ctrl+F                 - (Reserved for search mode)
 
 [b]Usage Notes:[/b]
@@ -214,7 +216,9 @@ class This2That(App):
         self.j2_env = setup_jinja_environment()
         self.suppress_highlight_refresh = False
 
-        self.output_format = "json"  # default to JSON
+        self.output_format = "json"  # default output format
+        self.yaml_pretty = False      # pretty YAML mode toggle
+
 
     # ----------------------------------------------------------------------
     # Key Utilities
@@ -367,12 +371,13 @@ class This2That(App):
             raise RuntimeError(str(e))
 
     def pretty_update_right(self, result):
-        """Render result as JSON or YAML based on current output_format."""
+        """Render result as JSON, YAML, or Nice YAML based on current settings."""
         try:
             if self.output_format == "yaml":
-                # YAML output
                 try:
                     stream = StringIO()
+                    # Use nice expanded formatting if yaml_pretty is True
+                    yaml_parser.default_flow_style = False if self.yaml_pretty else None
                     yaml_parser.dump(result, stream)
                     yaml_str = stream.getvalue()
                     self.output_editor.text = yaml_str
@@ -380,7 +385,7 @@ class This2That(App):
                     self.output_editor.text = f"ERROR: Failed to render as YAML\n{str(e)}"
                 return
 
-            # Default JSON output
+            # JSON output
             if isinstance(result, (dict, list)):
                 self.output_editor.text = json.dumps(result, indent=2, ensure_ascii=False)
                 return
@@ -542,6 +547,12 @@ class This2That(App):
         elif self.is_key("output_yaml", event.key):
             self.output_format = "yaml"
             self.suggestion_bar.update("[green]Output format changed to YAML[/green]")
+            self.refresh_output(force=True)
+
+        elif self.is_key("output_yaml_nice", event.key):
+            self.output_format = "yaml"
+            self.yaml_pretty = True
+            self.suggestion_bar.update("[green]Output format changed to YAML (pretty)[/green]")
             self.refresh_output(force=True)
 
 # ------------------------------------------------------------------------------
