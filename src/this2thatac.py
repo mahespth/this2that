@@ -7,10 +7,10 @@ import logging
 import pathlib
 from datetime import datetime
 from copy import deepcopy
+from io import StringIO
 
 from textual.app import App, ComposeResult
-from textual.widgets import TextArea, Tree, Static
-from textual.widgets import ListView, ListItem, Label
+from textual.widgets import TextArea, Tree, Static, ListView, ListItem, Label
 from textual.containers import Horizontal, Vertical
 from textual import events
 from textual.reactive import reactive
@@ -22,7 +22,6 @@ from rich.align import Align
 import jmespath
 from jinja2 import Environment, TemplateSyntaxError
 from ruamel.yaml import YAML
-from io import StringIO
 
 # ------------------------------------------------------------------------------
 # Logging Setup
@@ -61,7 +60,7 @@ DEFAULT_CONFIG = {
         "search_toggle": ["ctrl+f"],
         "output_json": ["ctrl+j"],   
         "output_yaml": ["ctrl+y"],  
-        "output_yaml_nice": ["ctrl+shift+y","ctrl+n"] 
+        "output_yaml_nice": ["ctrl+shift+y", "ctrl+n"] 
     }
 }
 
@@ -85,82 +84,13 @@ def ensure_save_file():
 
 def normalize_expression(expr: str) -> str:
     stripped = expr.strip()
-
     if not stripped:
         return stripped
-
-    # If the user already wrapped in {{ }}, leave it as-is
     if stripped.startswith("{{") and stripped.endswith("}}"):
         return stripped
-
-    # If it contains parentheses or 'selected |', assume it's already a filter chain
     if "(" in stripped or stripped.startswith("selected |"):
         return "{{ " + stripped + " }}"
-
-    # Otherwise, treat as a simple filter name
     return "{{ selected | " + stripped + " }}"
-
-# ------------------------------------------------------------------------------
-# Auto completion
-# ------------------------------------------------------------------------------
-def walk_data_for_completions(self, data, prefix="selected"):
-    completions = []
-    if isinstance(data, dict):
-        for key, value in data.items():
-            path = f"{prefix}.{key}"
-            completions.append(path)
-            completions.extend(self.walk_data_for_completions(value, path))
-    elif isinstance(data, list):
-        for i, value in enumerate(data):
-            path = f"{prefix}[{i}]"
-            completions.append(path)
-            completions.extend(self.walk_data_for_completions(value, path))
-    return completions
-
-def update_autocomplete_suggestions(self):
-    text = self.expr_input.text.strip()
-    suggestions = []
-
-    # If empty, hide autocomplete
-    if not text:
-        self.suggestion_list.display = False
-        return
-
-    # Check if user is typing a filter (after a pipe '|')
-    if "|" in text:
-        after_pipe = text.split("|")[-1].strip()
-        all_filters = self.get_available_filters()
-        suggestions = [f for f in all_filters if f.startswith(after_pipe)]
-    else:
-        # Suggest node paths based on current data
-        node_paths = self.walk_data_for_completions(self.data)
-        suggestions = [p for p in node_paths if p.startswith(text)]
-
-    # Update list view
-    self.suggestion_list.clear()
-
-    for s in suggestions[:10]:  # limit to top 10
-        self.suggestion_list.append(ListItem(Label(s)))
-
-    # Show or hide based on whether suggestions exist
-    self.suggestion_list.display = bool(suggestions)
-
-def accept_suggestion(self):
-    if self.suggestion_list.display and self.suggestion_list.index is not None:
-        selected_item = self.suggestion_list.children[self.suggestion_list.index]
-        suggestion_text = selected_item.children[0].renderable
-
-        # Replace the last word or segment with the suggestion
-        current_text = self.expr_input.text
-        parts = current_text.rsplit(" ", 1)
-        if len(parts) == 1:
-            new_text = suggestion_text
-        else:
-            new_text = parts[0] + " " + suggestion_text
-
-        self.expr_input.text = new_text
-        self.suggestion_list.display = False
-
 
 # ------------------------------------------------------------------------------
 # Jinja2 Environment with json_query Support
@@ -171,11 +101,9 @@ def setup_jinja_environment():
         from ansible.plugins.filter.core import FilterModule as AnsibleFilters
         env.filters.update(AnsibleFilters().filters())
         logger.info("Loaded Ansible filters: %s", list(env.filters.keys()))
-
     except Exception as e:
         logger.warning("Failed to load Ansible filters: %s", e)
 
-    # Ensure json_query exists
     if "json_query" not in env.filters:
         logger.warning("json_query not found, using fallback.")
         def json_query(data, expression):
@@ -185,7 +113,6 @@ def setup_jinja_environment():
                 logger.error("json_query error: %s", e)
                 return None
         env.filters["json_query"] = json_query
-
     return env
 
 # ------------------------------------------------------------------------------
@@ -215,34 +142,34 @@ def load_user_config():
 class HelpModal(ModalScreen):
     def compose(self) -> ComposeResult:
         help_text = """
-[b]This2That Ansible Data transformation tool - Help[/b]
+[b]This2That - Ansible Data Transformation Tool[/b]
 
 Author: Steve Maher
 
-Navigate JSON or YAML data, apply Jinja2 filters, and save transformations.
+Navigate JSON/YAML data, apply Jinja2 filters, and save transformations.
 
 [b]Key Bindings:[/b]
-  • Ctrl+/ or Ctrl+_ or ?  - Show/Hide this help
+  • Ctrl+/ or Ctrl+_ or ?  - Show/Hide help
   • Ctrl+Q                 - Quit
   • Ctrl+S                 - Save current run
   • Enter                  - Expand/Collapse node
   • Ctrl+Enter             - Refresh output
   • Ctrl+E                 - Toggle output editor edit mode
   • Ctrl+A                 - AI suggest filter from edited output
-  • Ctrl+J                 - Output format: JSON
-  • Ctrl+Y                 - Output format: YAML
-  • Ctrl+Shift+Y           - Output format: YAML (pretty / expanded)
-  • Ctrl+F                 - (Reserved for search mode)
+  • Ctrl+J                 - Output JSON
+  • Ctrl+Y                 - Output YAML
+  • Ctrl+Shift+Y           - Output YAML (pretty)
+  • Ctrl+F                 - Search mode (future)
 
-[b]Usage Notes:[/b]
-- Select a node in the tree to view its data.
-- Type a filter below to transform selected data.
-- json_query and Jinja2 filters are supported.
-- Edit right pane (Ctrl+E), change output, then press Ctrl+A to get a suggested filter.
-        """
+Usage:
+- Select a node in the tree to view data.
+- Type a filter in the box below to transform data.
+- json_query and Jinja2 filters supported.
+- Edit right pane (Ctrl+E), modify data, then Ctrl+A for suggested filter.
+"""
         yield Static(
             Panel(Align.center(help_text, vertical="middle"),
-                title="Help - This2That", border_style="cyan"),
+                  title="Help - This2That", border_style="cyan"),
             id="help_modal_content"
         )
 
@@ -261,6 +188,11 @@ class This2That(App):
     TextArea#expr_input { height: 6; border: solid yellow; }
     TextArea#expr_input.error { background: #330000; color: #ffcccc; }
     Static#suggestion_bar { height: 3; border: solid cyan; }
+    ListView#autocomplete {
+        height: 10;
+        border: solid magenta;
+        width: 60%;
+    }
     """
 
     show_search = reactive(False)
@@ -278,9 +210,8 @@ class This2That(App):
         self.j2_env = setup_jinja_environment()
         self.suppress_highlight_refresh = False
 
-        self.output_format = "json"  # default output format
-        self.yaml_pretty = False      # pretty YAML mode toggle
-
+        self.output_format = "json"
+        self.yaml_pretty = False
 
     # ----------------------------------------------------------------------
     # Key Utilities
@@ -296,18 +227,102 @@ class This2That(App):
             with open(self.data_file, "r") as f:
                 content = f.read()
             try:
-                content = yaml_parser.load(content)
-                logger.info("Loaded data as YAML. from %s", self.data_file)
-                return content
-            
+                return yaml_parser.load(content)
             except Exception:
-                logger.info("Highlight refresh suppressed temporarily.")
                 return json.loads(content)
         except Exception as e:
-            logger.info("load_data Failed to load data file: %s, error:", self.data_file, str(e))      
-
             self.data_load_error = str(e)
-            return None 
+            return None
+
+    # ----------------------------------------------------------------------
+    # Autocomplete
+    # ----------------------------------------------------------------------
+    def get_available_filters(self):
+        return sorted(self.j2_env.filters.keys())
+
+    def walk_data_for_completions(self, data, prefix="selected"):
+        completions = []
+        try:
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    path = f"{prefix}.{key}"
+                    completions.append(path)
+                    completions.extend(self.walk_data_for_completions(value, path))
+            elif isinstance(data, list):
+                for i, value in enumerate(data):
+                    path = f"{prefix}[{i}]"
+                    completions.append(path)
+                    completions.extend(self.walk_data_for_completions(value, path))
+        except Exception as e:
+            logger.debug("walk_data_for_completions error: %s", e)
+        return completions
+
+    def current_suggestions(self, text: str):
+        if not text:
+            return []
+        if "|" in text:
+            after_pipe = text.split("|")[-1].strip()
+            return [f for f in self.get_available_filters() if f.startswith(after_pipe)]
+        base = self.selected_value if self.selected_value is not None else self.data
+        paths = self.walk_data_for_completions(base)
+        if not text.startswith("selected"):
+            return ["selected"] + [p for p in paths if p.startswith("selected")]
+        return [p for p in paths if p.startswith(text)]
+
+    def _suggestion_items(self):
+        return [c for c in self.suggestion_list.children if isinstance(c, ListItem)]
+
+    def _move_suggestion_cursor(self, delta: int):
+        items = self._suggestion_items()
+        if not items:
+            return
+        cur = self.suggestion_list.index
+        if cur is None:
+            new_idx = 0 if delta > 0 else len(items) - 1
+        else:
+            new_idx = max(0, min(len(items) - 1, cur + delta))
+        self.suggestion_list.index = new_idx
+
+    def _get_selected_suggestion_item(self):
+        if not self.suggestion_list.display:
+            return None
+        idx = self.suggestion_list.index
+        items = self._suggestion_items()
+        if idx is None or idx < 0 or idx >= len(items):
+            return None
+        return items[idx]
+
+    def update_autocomplete_suggestions(self):
+        text = self.expr_input.text.strip()
+        suggestions = self.current_suggestions(text)
+
+        self.suggestion_list.clear()
+        for s in suggestions[:12]:
+            item = ListItem(Label(s))
+            item.data = s
+            self.suggestion_list.append(item)
+
+        self.suggestion_list.display = bool(suggestions)
+        if suggestions:
+            self.suggestion_list.index = 0
+
+    def accept_suggestion(self):
+        item = self._get_selected_suggestion_item()
+        if not item or not hasattr(item, "data"):
+            return
+        suggestion = item.data
+        text = self.expr_input.text
+
+        if "|" in text:
+            head, tail = text.rsplit("|", 1)
+            new_text = head.rstrip() + " | " + suggestion
+        else:
+            parts = text.rsplit(" ", 1)
+            new_text = suggestion if len(parts) == 1 else parts[0] + " " + suggestion
+
+        self.expr_input.text = new_text
+        self.suggestion_list.display = False
+        self.refresh_output(force=True)
 
     # ----------------------------------------------------------------------
     # Layout
@@ -329,13 +344,12 @@ class This2That(App):
             )
             yield self.expr_input
 
-            # Create the autocomplete list view (hidden initially)
             self.suggestion_list = ListView(id="autocomplete")
-            self.suggestion_list.display = False  # <-- hide at startup
+            self.suggestion_list.display = False
             yield self.suggestion_list
 
     # ----------------------------------------------------------------------
-    # Tree Setup
+    # Tree
     # ----------------------------------------------------------------------
     def on_mount(self):
         ensure_save_file()
@@ -368,18 +382,12 @@ class This2That(App):
             leaf = node.add(str(data))
             self.node_map[leaf.id] = (str(data), leaf, path)
 
-    # ----------------------------------------------------------------------
-    # Tree Navigation
-    # ----------------------------------------------------------------------
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted):
         if self.suppress_highlight_refresh:
-            logger.debug("Highlight refresh suppressed temporarily.")
             return
-
         _, _, path = self.node_map.get(event.node.id, (None, None, None))
         if path is not None:
             self.selected_value = self.get_value_at_path(path, self.data)
-            logger.debug("Node highlighted. Path: %s", path)
             self.refresh_output(force=True)
 
     def on_tree_node_selected(self, event: Tree.NodeSelected):
@@ -406,13 +414,11 @@ class This2That(App):
             self.pretty_update_right(self.selected_value)
             self.clear_error_highlight()
             return
-
         if not self.selected_value:
             self.output_editor.text = "Select a node in the tree to evaluate."
             return
 
         expr = normalize_expression(expr_raw)
-
         try:
             result = self.evaluate_expression(expr, self.selected_value)
             try:
@@ -430,29 +436,20 @@ class This2That(App):
         try:
             template = self.j2_env.from_string(expr)
             return template.render(selected=value)
-            
         except TemplateSyntaxError as e:
             raise TemplateSyntaxError(str(e), e.lineno, e.name, e.filename)
-        
         except Exception as e:
             raise RuntimeError(str(e))
 
     def pretty_update_right(self, result):
-        """Render result as JSON, YAML, or Nice YAML based on current settings."""
         try:
             if self.output_format == "yaml":
-                try:
-                    stream = StringIO()
-                    # Use nice expanded formatting if yaml_pretty is True
-                    yaml_parser.default_flow_style = False if self.yaml_pretty else None
-                    yaml_parser.dump(result, stream)
-                    yaml_str = stream.getvalue()
-                    self.output_editor.text = yaml_str
-                except Exception as e:
-                    self.output_editor.text = f"ERROR: Failed to render as YAML\n{str(e)}"
+                stream = StringIO()
+                yaml_parser.default_flow_style = False if self.yaml_pretty else None
+                yaml_parser.dump(result, stream)
+                self.output_editor.text = stream.getvalue()
                 return
 
-            # JSON output
             if isinstance(result, (dict, list)):
                 self.output_editor.text = json.dumps(result, indent=2, ensure_ascii=False)
                 return
@@ -469,7 +466,6 @@ class This2That(App):
                 return
 
             self.output_editor.text = str(result)
-
         except Exception as e:
             self.output_editor.text = f"ERROR: Failed to render output\n{str(e)}"
 
@@ -488,37 +484,29 @@ class This2That(App):
     # Edit Mode and AI Suggestion
     # ----------------------------------------------------------------------
     def toggle_edit_mode(self):
-        """Toggle right pane between read-only and editable, only changing border color."""
         self.edit_right = not self.edit_right
         self.output_editor.read_only = not self.edit_right
-
         if self.edit_right:
             self.output_editor.border_title = "Output (EDIT MODE)"
-            self.output_editor.styles.border_color = "yellow"  # Only change color
+            self.output_editor.styles.border_color = "yellow"
         else:
             self.output_editor.border_title = "Output"
-            self.output_editor.styles.border_color = "blue"    # Only change color
-
-        logger.debug("Right pane edit mode toggled: %s", self.edit_right)
+            self.output_editor.styles.border_color = "blue"
 
     def ai_suggest_filter(self):
         if not self.selected_value:
             self.output_editor.text = "No node selected, cannot suggest filter."
             return
-
         try:
             desired_output = yaml_or_json_load(self.output_editor.text)
         except Exception as e:
-            self.output_editor.text = f"ERROR: Desired output is invalid YAML/JSON: {e}"
+            self.output_editor.text = f"ERROR: Desired output invalid YAML/JSON: {e}"
             return
-
         suggested_filter = self.heuristic_suggest(self.selected_value, desired_output)
-
         if suggested_filter:
             self.expr_input.text = suggested_filter
             self.output_editor.text = (
-                f"Suggested filter:\n\n{suggested_filter}\n\n"
-                f"Press Enter to test or modify it."
+                f"Suggested filter:\n\n{suggested_filter}\n\nPress Enter to test."
             )
         else:
             self.output_editor.text = "AI could not determine a suitable filter."
@@ -534,13 +522,12 @@ class This2That(App):
         return None
 
     # ----------------------------------------------------------------------
-    # Save Feature
+    # Save
     # ----------------------------------------------------------------------
     def save_current_run(self):
         if not self.selected_value:
             self.output_editor.text = "No node selected, cannot save."
             return
-
         expr_raw = self.expr_input.text.strip()
         if not expr_raw:
             self.output_editor.text = "No expression entered, cannot save."
@@ -572,7 +559,7 @@ class This2That(App):
         self.output_editor.text = f"Saved current run to {SAVE_FILE}"
 
     # ----------------------------------------------------------------------
-    # Key Handling
+    # Events
     # ----------------------------------------------------------------------
     def on_text_area_changed(self, event: TextArea.Changed):
         if event.control is self.expr_input:
@@ -580,56 +567,40 @@ class This2That(App):
             self.refresh_output(force=True)
 
     def on_key(self, event: events.Key):
-        ctrl = getattr(event, "ctrl", False)
-        alt = getattr(event, "alt", False)
-        shift = getattr(event, "shift", False)
-
-        logger.debug(
-            "Key pressed: key=%s ctrl=%s alt=%s shift=%s",
-            event.key, ctrl, alt, shift
-        )
-
-        if self.suggestion_list.visible:
+        if self.suggestion_list.display:
             if event.key == "up":
-                self.suggestion_list.cursor_up()
+                self._move_suggestion_cursor(-1)
+                return
             elif event.key == "down":
-                self.suggestion_list.cursor_down()
+                self._move_suggestion_cursor(+1)
+                return
             elif event.key == "enter":
                 self.accept_suggestion()
                 return
-        
+
         if self.is_key("quit", event.key):
             self.exit()
-
         elif self.is_key("help", event.key):
             self.push_screen(HelpModal())
-
         elif self.is_key("refresh", event.key):
             self.refresh_output(force=True)
-
         elif self.is_key("save", event.key):
             self.save_current_run()
-
         elif self.is_key("edit_toggle", event.key):
             self.toggle_edit_mode()
-
         elif self.is_key("ai_suggest", event.key):
             self.ai_suggest_filter()
-
         elif self.is_key("output_json", event.key):
             self.output_format = "json"
-            self.suggestion_bar.update("[green]Output format changed to JSON[/green]")
+            self.yaml_pretty = False
             self.refresh_output(force=True)
-
         elif self.is_key("output_yaml", event.key):
             self.output_format = "yaml"
-            self.suggestion_bar.update("[green]Output format changed to YAML[/green]")
+            self.yaml_pretty = False
             self.refresh_output(force=True)
-
         elif self.is_key("output_yaml_nice", event.key):
             self.output_format = "yaml"
             self.yaml_pretty = True
-            self.suggestion_bar.update("[green]Output format changed to YAML (pretty)[/green]")
             self.refresh_output(force=True)
 
 # ------------------------------------------------------------------------------
